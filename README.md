@@ -1,61 +1,231 @@
-| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C6 | ESP32-H2 | ESP32-S3 |
-| ----------------- | ----- | -------- | -------- | -------- | -------- | -------- |
+แนวทางการทำงาน ESP32_ESP-IDF-BLE-ANCS-cook-book
 
-# ESP-IDF BLE ANCS Example
+1. ระบุตัวอย่างที่ใช้ ว่าเอามาจากตัวอย่างไหน
+   - เลือก new project แล้วตั้งชื่อโปรเจค ที่เก็บโฟลเดอร์ และเลือก port
+     <img width="1470" alt="ภาพถ่ายหน้าจอ 2567-11-10 เวลา 15 29 18" src="https://github.com/user-attachments/assets/3940971d-a2b9-41cf-b4cb-90f382f113f7">
+   - เลือกโปรเจค BLE-ANCS แล้วกด create project
+     <img width="1470" alt="ภาพถ่ายหน้าจอ 2567-11-10 เวลา 15 29 32" src="https://github.com/user-attachments/assets/c42b1b89-df07-4f88-a2b3-838219eb00c3">
+2. build และ run โปรแกรม
+     <img width="1470" alt="ภาพถ่ายหน้าจอ 2567-11-10 เวลา 15 35 18" src="https://github.com/user-attachments/assets/52ef0905-c823-4127-b77a-bcb0fe41b05a">
+3. นำโทรศัพท์เชื่อมต่อ bluetooth กับ esp
+     ![IMG_8410](https://github.com/user-attachments/assets/9d229022-3f45-4d7a-9c19-1357db622ded)
+   - โปรแกรมจะดักจับการแจ้งเตือนจากโทรศัพท์
+4. แก้โดยเปลี่ยนฟังก์ชั่นที่แสดงที่ OUTPUT เป็นภาษาไทยให้เข้าใจได้ง่ายขึ้น
+```c
+   /*
+ * SPDX-FileCopyrightText: 2021-2022 Espressif Systems (Shanghai) CO LTD
+ *
+ * SPDX-License-Identifier: Unlicense OR CC0-1.0
+ */
 
-The purpose of the Apple Notification Center Service (ANCS) is to give Bluetooth accessories (that connect to iOS devices through a Bluetooth low-energy link) a simple and convenient way to access many kinds of notifications that are generated on iOS devices.
+#include <stdlib.h>
+#include <string.h>
+#include <inttypes.h>
+#include "esp_log.h"
+#include "ble_ancs.h"
 
-## How to Use Example
+#define BLE_ANCS_TAG  "BLE_ANCS"
 
-Before project configuration and build, be sure to set the correct chip target using:
+/*
+| EventID(1 Byte) | EventFlags(1 Byte) | CategoryID(1 Byte) | CategoryCount(1 Byte) | NotificationUID(4 Bytes) |
 
-```bash
-idf.py set-target <chip_name>
+A GATT notification delivered through the Notification Source characteristic contains the following information:
+* EventID: This field informs the accessory whether the given iOS notification was added, modified, or removed. The enumerated values for this field are defined
+            in EventID Values.
+* EventFlags: A bitmask whose set bits inform an NC of specificities with the iOS notification. For example, if an iOS notification is considered “important”,
+              the NC may want to display a more aggressive user interface (UI) to make sure the user is properly alerted. The enumerated bits for this field
+              are defined in EventFlags.
+* CategoryID: A numerical value providing a category in which the iOS notification can be classified. The NP will make a best effort to provide an accurate category
+              for each iOS notification. The enumerated values for this field are defined in CategoryID Values.
+* CategoryCount: The current number of active iOS notifications in the given category. For example, if two unread emails are sitting in a user’s email inbox, and a new
+                 email is pushed to the user’s iOS device, the value of CategoryCount is 3.
+* NotificationUID: A 32-bit numerical value that is the unique identifier (UID) for the iOS notification. This value can be used as a handle in commands sent to the
+                   Control Point characteristic to interact with the iOS notification.
+*/
+
+char *EventID_to_String(uint8_t EventID)
+{
+    char *str = NULL;
+    switch (EventID)
+    {
+    case EventIDNotificationAdded:
+        str = "ข้อความใหม่";
+        break;
+    case EventIDNotificationModified:
+        str = "ข้อความที่ถูกปรับเปลี่ยน";
+        break;
+    case EventIDNotificationRemoved:
+        str = "ข้อความที่ถูกลบ";
+        break;
+    default:
+        str = "EventID ไม่ทราบ";
+        break;
+    }
+    return str;
+}
+
+char *CategoryID_to_String(uint8_t CategoryID)
+{
+    char *Cidstr = NULL;
+    switch (CategoryID)
+    {
+    case CategoryIDOther:
+        Cidstr = "อื่นๆ";
+        break;
+    case CategoryIDIncomingCall:
+        Cidstr = "โทรเข้า";
+        break;
+    case CategoryIDMissedCall:
+        Cidstr = "โทรที่พลาด";
+        break;
+    case CategoryIDVoicemail:
+        Cidstr = "ข้อความเสียง";
+        break;
+    case CategoryIDSocial:
+        Cidstr = "โซเชียล";
+        break;
+    case CategoryIDSchedule:
+        Cidstr = "ตารางเวลา";
+        break;
+    case CategoryIDEmail:
+        Cidstr = "อีเมล";
+        break;
+    case CategoryIDNews:
+        Cidstr = "ข่าว";
+        break;
+    case CategoryIDHealthAndFitness:
+        Cidstr = "สุขภาพและฟิตเนส";
+        break;
+    case CategoryIDBusinessAndFinance:
+        Cidstr = "ธุรกิจและการเงิน";
+        break;
+    case CategoryIDLocation:
+        Cidstr = "ตำแหน่ง";
+        break;
+    case CategoryIDEntertainment:
+        Cidstr = "บันเทิง";
+        break;
+    default:
+        Cidstr = "CategoryID ไม่ทราบ";
+        break;
+    }
+    return Cidstr;
+}
+
+void esp_receive_apple_notification_source(uint8_t *message, uint16_t message_len)
+{
+    if (!message || message_len < 5)
+    {
+        return;
+    }
+
+    uint8_t EventID = message[0];
+    char *EventIDS = EventID_to_String(EventID);
+    uint8_t EventFlags = message[1];
+    uint8_t CategoryID = message[2];
+    char *Cidstr = CategoryID_to_String(CategoryID);
+    uint8_t CategoryCount = message[3];
+    uint32_t NotificationUID = (message[4]) | (message[5] << 8) | (message[6] << 16) | (message[7] << 24);
+    ESP_LOGI(BLE_ANCS_TAG, "EventID: %s EventFlags: 0x%x CategoryID: %s CategoryCount: %d NotificationUID: %" PRIu32, EventIDS, EventFlags, Cidstr, CategoryCount, NotificationUID);
+}
+
+void esp_receive_apple_data_source(uint8_t *message, uint16_t message_len)
+{
+    if (!message || message_len == 0)
+    {
+        return;
+    }
+
+    uint8_t Command_id = message[0];
+    switch (Command_id)
+    {
+    case CommandIDGetNotificationAttributes:
+    {
+        uint32_t NotificationUID = (message[1]) | (message[2] << 8) | (message[3] << 16) | (message[4] << 24);
+        uint32_t remian_attr_len = message_len - 5;
+        uint8_t *attrs = &message[5];
+        ESP_LOGI(BLE_ANCS_TAG, "รับข้อมูลคุณสมบัติการแจ้งเตือน Command_id %d NotificationUID %" PRIu32, Command_id, NotificationUID);
+        while (remian_attr_len > 0)
+        {
+            uint8_t AttributeID = attrs[0];
+            uint16_t len = attrs[1] | (attrs[2] << 8);
+            if (len > (remian_attr_len - 3))
+            {
+                ESP_LOGE(BLE_ANCS_TAG, "ข้อมูลผิดพลาด");
+                break;
+            }
+            switch (AttributeID)
+            {
+            case NotificationAttributeIDAppIdentifier:
+                esp_log_buffer_char("Identifier", &attrs[3], len);
+                break;
+            case NotificationAttributeIDTitle:
+                esp_log_buffer_char("Title", &attrs[3], len); // ตรวจสอบให้แน่ใจว่าสามารถจัดการกับสตริง UTF-8 ที่ยาวได้
+                break;
+            case NotificationAttributeIDSubtitle:
+                esp_log_buffer_char("Subtitle", &attrs[3], len);
+                break;
+            case NotificationAttributeIDMessage:
+                esp_log_buffer_char("Message", &attrs[3], len); // ตรวจสอบให้แน่ใจว่าสามารถจัดการกับสตริง UTF-8 ที่ยาวได้
+                break;
+            case NotificationAttributeIDMessageSize:
+                esp_log_buffer_char("MessageSize", &attrs[3], len);
+                break;
+            case NotificationAttributeIDDate:
+                esp_log_buffer_char("Date", &attrs[3], len);
+                break;
+            case NotificationAttributeIDPositiveActionLabel:
+                esp_log_buffer_hex("PActionLabel", &attrs[3], len);
+                break;
+            case NotificationAttributeIDNegativeActionLabel:
+                esp_log_buffer_hex("NActionLabel", &attrs[3], len);
+                break;
+            default:
+                esp_log_buffer_hex("unknownAttributeID", &attrs[3], len);
+                break;
+            }
+
+            attrs += (1 + 2 + len);
+            remian_attr_len -= (1 + 2 + len);
+        }
+        break;
+    }
+    case CommandIDGetAppAttributes:
+        ESP_LOGI(BLE_ANCS_TAG, "รับข้อมูลคุณสมบัติของแอป");
+        break;
+    case CommandIDPerformNotificationAction:
+        ESP_LOGI(BLE_ANCS_TAG, "รับการดำเนินการแจ้งเตือน");
+        break;
+    default:
+        ESP_LOGI(BLE_ANCS_TAG, "Command ID ไม่ทราบ");
+        break;
+    }
+}
+
+char *Errcode_to_String(uint16_t status)
+{
+    char *Errstr = NULL;
+    switch (status)
+    {
+    case Unknown_command:
+        Errstr = "คำสั่งไม่รู้จัก";
+        break;
+    case Invalid_command:
+        Errstr = "คำสั่งไม่ถูกต้อง";
+        break;
+    case Invalid_parameter:
+        Errstr = "พารามิเตอร์ไม่ถูกต้อง";
+        break;
+    case Action_failed:
+        Errstr = "การดำเนินการล้มเหลว";
+        break;
+    default:
+        Errstr = "ข้อผิดพลาดไม่รู้จัก";
+        break;
+    }
+    return Errstr;
+}
 ```
 
-The Apple Notification Center Service is a primary service whose service UUID is:
-
-`7905F431-B5CE-4E99-A40F-4B1E122D00D0`
-
-Only one instance of the ANCS may be present on an NP. Due to the nature of iOS, the ANCS is not guaranteed to always be present. As a result, the NC should look for and subscribe to the Service Changed characteristic of the GATT service in order to monitor for the potential publishing and unpublishing of the ANCS at any time.
-
-In its basic form, the ANCS exposes three characteristics:
-Notification Source: UUID `9FBF120D-6301-42D9-8C58-25E699A21DBD` (notifiable)
-Control Point: UUID `69D1D8F3-45E1-49A8-9821-9BBDFDAAD9D9` (writeable with response)
-Data Source: UUID `22EAC6E9-24D6-4BB5-BE44-B36ACE7C7BFB` (notifiable)
-
-All these characteristics require authorization for access.
-
-### Hardware Required
-
-* A development board with ESP32/ESP32-C3/ESP32-H2/ESP32-C2/ESP32-S3 SoC (e.g., ESP32-DevKitC, ESP-WROVER-KIT, etc.)
-* A USB cable for power supply and programming
-
-See [Development Boards](https://www.espressif.com/en/products/devkits) for more information about it.
-
-### Build and Flash
-
-Run `idf.py -p PORT flash monitor` to build, flash and monitor the project.
-
-(To exit the serial monitor, type ``Ctrl-]``.)
-
-See the [Getting Started Guide](https://idf.espressif.com/) for full steps to configure and use ESP-IDF to build projects.
-
-## Example Output
-
-```
-I (0) cpu_start: Starting scheduler on APP CPU.
-I (558) BTDM_INIT: BT controller compile version [1342a48]
-I (568) system_api: Base MAC address is not set
-I (568) system_api: read default base MAC address from EFUSE
-I (568) phy_init: phy_version 4670,719f9f6,Feb 18 2021,17:07:07
-I (918) BLE_ANCS: app_main init bluetooth
-I (1018) BLE_ANCS: REG_EVT
-E (1028) BT_BTM: BTM_BleConfigLocalIcon
-
-I (1058) BLE_ANCS: advertising start success
-```
-
-## Troubleshooting
-
-For any technical queries, please open an [issue](https://github.com/espressif/esp-idf/issues) on GitHub. We will get back to you soon.
+5.ผลลัพธ์
+![image](https://github.com/user-attachments/assets/58a3f7fc-97c2-40cd-b721-19a1117f7f82)
