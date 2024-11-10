@@ -1,0 +1,13 @@
+# Target labels
+ bootloader
+# Source files and their labels
+/Users/omelaweng/ESP32_ESP-IDF-BLE-ANCS-cook-book/build/CMakeFiles/bootloader
+/Users/omelaweng/ESP32_ESP-IDF-BLE-ANCS-cook-book/build/CMakeFiles/bootloader.rule
+/Users/omelaweng/ESP32_ESP-IDF-BLE-ANCS-cook-book/build/CMakeFiles/bootloader-complete.rule
+/Users/omelaweng/ESP32_ESP-IDF-BLE-ANCS-cook-book/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule
+/Users/omelaweng/ESP32_ESP-IDF-BLE-ANCS-cook-book/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule
+/Users/omelaweng/ESP32_ESP-IDF-BLE-ANCS-cook-book/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule
+/Users/omelaweng/ESP32_ESP-IDF-BLE-ANCS-cook-book/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule
+/Users/omelaweng/ESP32_ESP-IDF-BLE-ANCS-cook-book/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule
+/Users/omelaweng/ESP32_ESP-IDF-BLE-ANCS-cook-book/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule
+/Users/omelaweng/ESP32_ESP-IDF-BLE-ANCS-cook-book/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule
